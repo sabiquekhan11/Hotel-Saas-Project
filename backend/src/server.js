@@ -37,32 +37,16 @@ io.on('connection', (socket) => {
   });
 });
 
-// Mock routes for demo (since we are not connecting to a real DB right now unless user sets up PG)
-// In a real app, these would be in separate route files and talk to PostgreSQL
-const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'luxe-secret-key-123';
-
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body;
-  // Mock validation
-  if (email && password) {
-    let role = 'customer';
-    if (email.includes('admin')) role = 'admin';
-    if (email.includes('staff')) role = 'staff';
-    
-    const token = jwt.sign({ id: 1, email, role }, JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token, role });
-  } else {
-    res.status(401).json({ error: 'Invalid credentials' });
-  }
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
 // Mock Data
+let users = [
+  { id: 1, email: 'admin@luxestay.com', password: 'password', role: 'admin', name: 'Admin User' },
+  { id: 2, email: 'staff@luxestay.com', password: 'password', role: 'staff', name: 'Staff User', phone: '1234567890', staffId: 'STAFF-STAFF-001' }
+];
+
+let hotels = [
+  { id: 1, name: 'LuxeStay Central', location: 'New York, NY', rate: 200, rooms_count: 50, image: 'hotel1.jpg', owner_id: 1 }
+];
+
 let rooms = [
   { id: 1, hotel_id: 1, room_number: '101', type: 'Single', price: 100, status: 'available' },
   { id: 2, hotel_id: 1, room_number: '102', type: 'Double', price: 150, status: 'booked' },
@@ -73,6 +57,100 @@ let rooms = [
 let tasks = [
   { id: 1, hotel_id: 1, room_id: 3, assigned_to: null, task_type: 'cleaning', status: 'pending' },
 ];
+
+// Auth Routes
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'luxe-secret-key-123';
+
+app.post('/api/login', (req, res) => {
+  const { email, password, role } = req.body;
+  // Use email or staffId for login
+  const user = users.find(u => (u.email === email || u.staffId === email) && u.password === password && u.role === role);
+  
+  if (user) {
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, role: user.role, name: user.name });
+  } else {
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
+
+app.post('/api/register/hotel', (req, res) => {
+  const { adminName, email, password, hotelName, location, rate, roomsCount, image } = req.body;
+  
+  const newUser = {
+    id: users.length + 1,
+    name: adminName,
+    email,
+    password, // In reality, hash this
+    role: 'admin'
+  };
+  users.push(newUser);
+
+  const newHotel = {
+    id: hotels.length + 1,
+    name: hotelName,
+    location,
+    rate,
+    rooms_count: roomsCount,
+    image,
+    owner_id: newUser.id
+  };
+  hotels.push(newHotel);
+  
+  res.json({ message: 'Hotel registered successfully', hotel: newHotel });
+});
+
+// Staff Routes
+app.post('/api/staff', (req, res) => {
+  const { name, phone } = req.body;
+  const staffId = `STAFF-${name.toUpperCase().replace(/\s+/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+  
+  // Generate a random 6 character password
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let password = '';
+  for (let i = 0; i < 6; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  const newStaff = {
+    id: users.length + 1,
+    name,
+    phone,
+    staffId,
+    email: `${staffId.toLowerCase()}@luxestay.com`,
+    password, 
+    role: 'staff'
+  };
+  
+  users.push(newStaff);
+  res.json({ message: 'Staff added successfully', staff: newStaff });
+});
+
+app.get('/api/staff', (req, res) => {
+  res.json(users.filter(u => u.role === 'staff'));
+});
+
+app.delete('/api/staff/:id', (req, res) => {
+  const staffId = parseInt(req.params.id);
+  users = users.filter(u => u.id !== staffId);
+  res.json({ message: 'Staff terminated successfully' });
+});
+
+app.put('/api/staff/password', (req, res) => {
+  const { id, newPassword } = req.body;
+  const user = users.find(u => u.id === id);
+  if (user && user.role === 'staff') {
+    user.password = newPassword;
+    res.json({ message: 'Password changed successfully' });
+  } else {
+    res.status(404).json({ error: 'Staff not found' });
+  }
+});
+
+app.get('/api/hotels', (req, res) => {
+  res.json(hotels);
+});
 
 // Routes
 app.get('/api/hotels/:hotelId/rooms', (req, res) => {

@@ -4,13 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix frontend\" \"node backend/src/server.js\""
+    "dev": "concurrently \"npm run dev --prefix customer\" \"npm run dev --prefix admin\" \"npm run dev --prefix staff\" \"node backend/src/server.js\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.0",
     "concurrently": "^9.2.1"
   }
 }
